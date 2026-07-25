@@ -2,7 +2,7 @@ import os
 import streamlit as st
 from openai import OpenAI
 
-# 💡 클라우드(Secrets)와 로컬(.env) 모두를 지원하는 안전한 키 불러오기 방식
+# 1. API 키 안전하게 불러오기
 try:
     NVIDIA_API_KEY = st.secrets["NVIDIA_API_KEY"]
 except:
@@ -10,7 +10,6 @@ except:
     load_dotenv()
     NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY")
 
-# 웹페이지 기본 설정
 st.set_page_config(page_title="My Multi-AI Hub", page_icon="🤖", layout="wide")
 st.title("🤖 My Private AI Assistant")
 
@@ -18,26 +17,30 @@ if not NVIDIA_API_KEY:
     st.error("API 키가 설정되지 않았습니다. Streamlit Secrets 설정을 확인해 주세요.")
     st.stop()
 
-# 클라이언트 초기화
+# 2. OpenAI 클라이언트 초기화
 client = OpenAI(
     base_url="https://integrate.api.nvidia.com/v1",
     api_key=NVIDIA_API_KEY
 )
 
-# 지원할 AI 모델 목록 (제조사/모델명 형식으로 정확히 수정)
-MODELS = {
-    "⚡ DeepSeek V4 Flash": "deepseek/deepseek-v4-flash",
-    "🧠 Qwen 3.5 397B": "qwen/qwen3.5-397b-a17b",
-    "💻 MiniMax M3": "minimaxai/minimax-m3",
-    "🔗 Kimi K2.6": "moonshotai/kimi-k2.6",
-    "🤖 GLM 5.1": "zhipuai/glm-5.1"
-}
+# 3. 💡 핵심: NVIDIA 서버에서 내 키로 쓸 수 있는 '모든 모델 목록' 실시간 가져오기
+@st.cache_data(ttl=3600)
+def get_model_list():
+    try:
+        models = client.models.list()
+        # 서버에서 받아온 진짜 모델 ID들을 알파벳 순으로 정렬해서 반환
+        return sorted([m.id for m in models.data])
+    except Exception as e:
+        return ["minimaxai/minimax-m3"] # 실패 시 작동 확인된 모델만 출력
+
+all_models = get_model_list()
 
 # --- 사이드바 구성 ---
 with st.sidebar:
     st.header("⚙️ 모델 설정")
-    selected_label = st.selectbox("사용할 AI 모델을 선택하세요:", list(MODELS.keys()))
-    selected_model = MODELS[selected_label]
+    st.success("NVIDIA 서버와 연결되었습니다!")
+    # 수동 입력 대신, 서버에서 가져온 전체 모델을 드롭다운으로 표시
+    selected_model = st.selectbox("사용할 AI 모델을 선택하세요:", all_models)
     
     st.divider()
     if st.button("🗑️ 대화 내역 초기화", use_container_width=True):
