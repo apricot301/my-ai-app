@@ -24,13 +24,13 @@ client = OpenAI(
     api_key=NVIDIA_API_KEY
 )
 
-# 지원할 AI 모델 목록
+# 지원할 AI 모델 목록 (제조사/모델명 형식으로 정확히 수정)
 MODELS = {
-    "⚡ DeepSeek V4 Flash": "deepseek-v4-flash",
-    "🧠 Qwen 3.5 397B": "qwen3.5-397b-a17b",
-    "💻 MiniMax M3": "minimax-m3",
-    "🔗 Kimi K2.6": "kimi-k2.6",
-    "🤖 GLM 5.1": "glm-5.1"
+    "⚡ DeepSeek V4 Flash": "deepseek/deepseek-v4-flash",
+    "🧠 Qwen 3.5 397B": "qwen/qwen3.5-397b-a17b",
+    "💻 MiniMax M3": "minimaxai/minimax-m3",
+    "🔗 Kimi K2.6": "moonshotai/kimi-k2.6",
+    "🤖 GLM 5.1": "zhipuai/glm-5.1"
 }
 
 # --- 사이드바 구성 ---
