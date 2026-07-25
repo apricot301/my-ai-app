@@ -10,8 +10,8 @@ load_dotenv()
 st.set_page_config(page_title="My Multi-AI Hub", page_icon="🤖", layout="wide")
 st.title("🤖 My Private AI Assistant")
 
-# NVIDIA API 키 설정
-NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY")
+# NVIDIA API 키 설정 (클라우드 및 로컬 모두 지원)
+NVIDIA_API_KEY = st.secrets.get("NVIDIA_API_KEY", os.getenv("NVIDIA_API_KEY"))
 if not NVIDIA_API_KEY:
     st.error(".env 파일에 NVIDIA_API_KEY가 설정되어 있지 않습니다.")
     st.stop()
