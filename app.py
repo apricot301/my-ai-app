@@ -13,7 +13,7 @@ except:
     NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY")
 
 st.set_page_config(page_title="My Multi-AI Hub", page_icon="🚀", layout="wide")
-st.title("🚀 나만의 최상위 AI 비서")
+st.title("🚀 나만의 최상위 멀티모달 AI 비서")
 
 if not NVIDIA_API_KEY:
     st.error("API 키가 설정되지 않았습니다.")
@@ -33,7 +33,7 @@ MODELS = {
     "💻 MiniMax M3": "minimaxai/minimax-m3"
 }
 
-# 3. 💡 멀티 채팅방(다중 세션) 저장용 데이터베이스 관리
+# 3. 데이터베이스 관리
 HISTORY_FILE = "multi_chat_history.json"
 
 def load_history():
@@ -49,75 +49,106 @@ def save_history(data):
     with open(HISTORY_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
-# 전체 데이터베이스 불러오기
 if "db" not in st.session_state:
     st.session_state.db = load_history()
 
-# --- 사이드바 (메뉴 및 채팅방 관리) ---
+# --- 사이드바 (방 관리 및 💡편의기능: 페르소나 설정) ---
 with st.sidebar:
-    st.header("⚙️ 모델 설정")
-    selected_label = st.selectbox("1️⃣ 사용할 모델 선택:", list(MODELS.keys()))
+    st.header("⚙️ 기본 설정")
+    selected_label = st.selectbox("1️⃣ 사용할 모델 선택 (언제든 변경 가능):", list(MODELS.keys()))
     selected_model = MODELS[selected_label]
+    
+    # 🎁 편의기능 1: AI 역할(페르소나) 부여
+    system_prompt = st.text_area(
+        "🧠 AI 페르소나 (역할 부여)", 
+        value="당신은 도움이 되는 친절한 AI 어시스턴트입니다.",
+        help="예: '너는 20년 차 부동산 투자 전문가야', '너는 파이썬 자동화 스크립트 작성 전문가야'"
+    )
     
     st.divider()
     st.header("📂 채팅방 관리")
     
-    # 해당 모델의 데이터 방이 없으면 '기본 대화방'을 하나 만듭니다.
     if selected_model not in st.session_state.db:
          st.session_state.db[selected_model] = {"기본 대화방": []}
          save_history(st.session_state.db)
     
-    # 현재 선택된 모델의 채팅방 목록 가져오기
     model_db = st.session_state.db[selected_model]
     room_names = list(model_db.keys())
-    
-    # 💡 과거 대화방(A대화, B대화)을 마음대로 선택해서 넘나드는 메뉴
     selected_room = st.selectbox("2️⃣ 대화방(주제) 선택:", room_names)
     
-    # 새 대화방 만들기 버튼
-    if st.button("➕ 새 대화방 만들기", use_container_width=True):
-        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        new_room_name = f"새 대화 ({now})"
-        st.session_state.db[selected_model][new_room_name] = []
-        save_history(st.session_state.db)
-        st.rerun() # 화면 새로고침
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("➕ 새 방 만들기", use_container_width=True):
+            now = datetime.datetime.now().strftime("%m-%d %H:%M")
+            st.session_state.db[selected_model][f"새 대화 ({now})"] = []
+            save_history(st.session_state.db)
+            st.rerun()
+    with col2:
+        if st.button("🗑️ 현재 방 지우기", use_container_width=True):
+            if len(room_names) > 1:
+                del st.session_state.db[selected_model][selected_room]
+            else:
+                st.session_state.db[selected_model][selected_room] = []
+            save_history(st.session_state.db)
+            st.rerun()
 
-    # 현재 대화방 삭제 버튼
-    if st.button("🗑️ 현재 대화방 지우기", use_container_width=True):
-        if len(room_names) > 1:
-            del st.session_state.db[selected_model][selected_room]
-        else:
-            st.session_state.db[selected_model][selected_room] = [] # 마지막 방은 내용만 삭제
-        save_history(st.session_state.db)
-        st.rerun()
-
-    st.divider()
-    # 전체 기록 다운로드
-    chat_data = json.dumps(st.session_state.db, ensure_ascii=False, indent=2)
-    st.download_button(
-        label="💾 모든 기록 다운로드 (백업)",
-        data=chat_data,
-        file_name="all_models_history.json",
-        mime="application/json",
-        use_container_width=True
-    )
-
-# --- 💡 메인 채팅 화면 (선택된 모델의, 선택된 방의 대화만 보여줌) ---
-# 짧은 변수로 지정하여 코드 가독성 높임
+# --- 메인 채팅 화면 ---
 messages = st.session_state.db[selected_model][selected_room]
 
 for message in messages:
-    with st.chat_message(message["role"]):
-        st.write(message["content"])
+    # 시스템 프롬프트는 화면에 표시하지 않음
+    if message["role"] != "system":
+        with st.chat_message(message["role"]):
+            st.write(message["content"])
+
+# 🎁 편의기능 2: 단축 프롬프트 버튼
+st.markdown("💡 **빠른 질문 (클릭하면 바로 입력됩니다)**")
+quick_col1, quick_col2, quick_col3 = st.columns(3)
+quick_prompt = None
+if quick_col1.button("🔍 파이썬 코드 리뷰해 줘", use_container_width=True): quick_prompt = "작성한 파이썬 코드를 리뷰하고, 오류나 개선점을 알려줘."
+if quick_col2.button("📝 대화 내용 요약해 줘", use_container_width=True): quick_prompt = "지금까지의 대화 내용을 3줄로 핵심만 요약해 줘."
+if quick_col3.button("🌐 영어로 번역해 줘", use_container_width=True): quick_prompt = "방금 네가 한 대답을 자연스러운 비즈니스 영어로 번역해 줘."
+
+# --- 입력창 주변 도구 모음 (파일업로드 & 음성인식) ---
+file_content = ""
+with st.popover("📎 첨부 및 도구 (파일 / 음성)"):
+    st.write("**파일 업로드 (텍스트, CSV, Markdown)**")
+    uploaded_file = st.file_uploader("파일을 올려주시면 AI가 읽고 대답합니다.", type=['txt', 'csv', 'md'])
+    if uploaded_file:
+        file_content = uploaded_file.getvalue().decode('utf-8')
+        st.success("✅ 파일 내용이 준비되었습니다! 입력창에 질문을 남겨주세요.")
+    
+    st.divider()
+    st.write("**🎙️ 음성 입력 (Streamlit 최신 기능)**")
+    # Streamlit 1.38+ 에 추가된 오디오 입력 (현재는 녹음본을 저장/재생하는 UI 제공)
+    audio_val = st.audio_input("음성 녹음하기")
+    if audio_val:
+        st.info("💡 녹음이 완료되었습니다. (참고: 음성을 텍스트로 자동 변환하려면 Whisper STT API 연동이 추가로 필요합니다.)")
 
 # --- 사용자 입력 및 응답 ---
-if prompt := st.chat_input(f"'{selected_room}'에 메시지 보내기..."):
-    # 사용자 질문 저장
-    messages.append({"role": "user", "content": prompt})
+# 사용자가 직접 타이핑하거나 퀵 버튼을 누른 경우 처리
+prompt = st.chat_input(f"'{selected_room}' 방에 메시지 보내기...") or quick_prompt
+
+if prompt:
+    # 시스템 프롬프트가 설정되어 있다면, 대화 시작(또는 변경) 시 AI에게 몰래 주입
+    if not messages or messages[0].get("role") != "system" or messages[0].get("content") != system_prompt:
+        # 기존 시스템 프롬프트가 있으면 제거하고 새 것으로 업데이트
+        messages = [m for m in messages if m["role"] != "system"]
+        messages.insert(0, {"role": "system", "content": system_prompt})
+
+    # 파일이 업로드 되어 있다면 프롬프트에 몰래 텍스트를 끼워 넣음
+    display_prompt = prompt
+    actual_prompt = prompt
+    if file_content:
+        actual_prompt = f"다음 문서 내용을 참고해서 답변해 줘:\n\n[문서 내용]\n{file_content}\n\n[내 질문]\n{prompt}"
+        display_prompt = f"📄 *(문서 첨부됨)* {prompt}"
+
+    messages.append({"role": "user", "content": actual_prompt})
+    st.session_state.db[selected_model][selected_room] = messages
     save_history(st.session_state.db)
 
     with st.chat_message("user"):
-        st.write(prompt)
+        st.write(display_prompt)
 
     with st.chat_message("assistant"):
         message_placeholder = st.empty()
@@ -141,8 +172,8 @@ if prompt := st.chat_input(f"'{selected_room}'에 메시지 보내기..."):
             
             message_placeholder.markdown(full_response)
             
-            # AI 답변 저장
             messages.append({"role": "assistant", "content": full_response})
+            st.session_state.db[selected_model][selected_room] = messages
             save_history(st.session_state.db)
             
         except Exception as e:
