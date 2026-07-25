@@ -1,9 +1,9 @@
 import os
-import json # 💡 파일 저장을 위한 라이브러리 추가
+import json
 import streamlit as st
 from openai import OpenAI
 
-# (API 키 불러오기 설정 등은 기존과 동일...)
+# 1. API 키 안전하게 불러오기
 try:
     NVIDIA_API_KEY = st.secrets["NVIDIA_API_KEY"]
 except:
@@ -14,11 +14,17 @@ except:
 st.set_page_config(page_title="My Multi-AI Hub", page_icon="🚀", layout="wide")
 st.title("🚀 나만의 최상위 AI 비서")
 
+if not NVIDIA_API_KEY:
+    st.error("API 키가 설정되지 않았습니다. Streamlit Secrets 설정을 확인해 주세요.")
+    st.stop()
+
+# 2. OpenAI 클라이언트 초기화
 client = OpenAI(
     base_url="https://integrate.api.nvidia.com/v1",
     api_key=NVIDIA_API_KEY
 )
 
+# 3. 모델 목록
 MODELS = {
     "👑 Nemotron 3 Ultra (550B)": "nvidia/nemotron-3-ultra-550b-a55b",
     "🔗 Kimi K2.6 (Moonshot)": "moonshotai/kimi-k2.6",
@@ -27,7 +33,7 @@ MODELS = {
     "💻 MiniMax M3": "minimaxai/minimax-m3"
 }
 
-# 💡 핵심: 대화 내용을 파일(JSON)로 저장하고 불러오는 함수
+# 4. 대화 자동 저장 및 불러오기 함수
 HISTORY_FILE = "chat_history.json"
 
 def load_history():
@@ -40,24 +46,34 @@ def save_history(messages):
     with open(HISTORY_FILE, "w", encoding="utf-8") as f:
         json.dump(messages, f, ensure_ascii=False, indent=2)
 
-# --- 대화 세션 상태 초기화 및 불러오기 ---
+# 앱 시작 시 기록 불러오기
 if "messages" not in st.session_state:
-    # 앱을 처음 켤 때 파일에서 대화 내용을 읽어옵니다.
     st.session_state.messages = load_history()
 
-# --- 사이드바 구성 ---
+# --- 사이드바 구성 (메뉴 화면) ---
 with st.sidebar:
     st.header("⚙️ 모델 설정")
     selected_label = st.selectbox("사용할 모델을 선택하세요:", list(MODELS.keys()))
     selected_model = MODELS[selected_label]
     
     st.divider()
+    
+    # 💡 추가된 대화 기록 다운로드 버튼
+    chat_data = json.dumps(st.session_state.messages, ensure_ascii=False, indent=2)
+    st.download_button(
+        label="💾 대화 기록 다운로드 (백업)",
+        data=chat_data,
+        file_name="my_chat_history.json",
+        mime="application/json",
+        use_container_width=True
+    )
+
     if st.button("🗑️ 대화 내역 모두 지우기", use_container_width=True):
         st.session_state.messages = []
-        save_history([]) # 파일도 깨끗하게 비웁니다
+        save_history([]) 
         st.rerun()
 
-# 이전 대화 출력
+# --- 메인 채팅 화면 ---
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.write(message["content"])
@@ -65,7 +81,7 @@ for message in st.session_state.messages:
 # --- 사용자 입력 및 응답 처리 ---
 if prompt := st.chat_input("질문을 입력하세요..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
-    save_history(st.session_state.messages) # 질문할 때마다 자동 저장
+    save_history(st.session_state.messages) # 질문 자동 저장
 
     with st.chat_message("user"):
         st.write(prompt)
@@ -92,7 +108,7 @@ if prompt := st.chat_input("질문을 입력하세요..."):
             
             message_placeholder.markdown(full_response)
             st.session_state.messages.append({"role": "assistant", "content": full_response})
-            save_history(st.session_state.messages) # 답변이 끝나도 자동 저장
+            save_history(st.session_state.messages) # 답변 완료 후 자동 저장
             
         except Exception as e:
             message_placeholder.error(f"오류가 발생했습니다: {e}")
