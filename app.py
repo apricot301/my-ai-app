@@ -25,12 +25,15 @@ client = OpenAI(
     api_key=NVIDIA_API_KEY
 )
 
+# 💡 7개의 모델 라인업 (요청하신 순서대로 배치 완료)
 MODELS = {
     "👑 Nemotron 3 Ultra (550B)": "nvidia/nemotron-3-ultra-550b-a55b",
     "🔗 Kimi K2.6 (Moonshot)": "moonshotai/kimi-k2.6",
+    "⚡ DeepSeek V4 Flash": "deepseek-ai/deepseek-v4-flash",
     "⚡ DeepSeek V4 Pro": "deepseek-ai/deepseek-v4-pro",
     "🤖 GLM 5.2 (Zhipu AI)": "z-ai/glm-5.2",
-    "💻 MiniMax M3": "minimaxai/minimax-m3"
+    "💻 MiniMax M3": "minimaxai/minimax-m3",
+    "🌐 GPT OSS 120B": "openai/gpt-oss-120b"
 }
 
 # 3. 데이터베이스 및 상태 동기화 (Sync) 관리
@@ -88,7 +91,7 @@ if "current_room" not in st.session_state or st.session_state.current_room not i
     st.session_state.current_room = room_names[0]
     st.session_state.sidebar_room_select = room_names[0]
 
-# --- ⚙️ 사이드바 (기존 메뉴 유지) ---
+# --- ⚙️ 사이드바 ---
 with st.sidebar:
     st.header("⚙️ 기본 설정")
     # 사이드바용 모델 선택기
@@ -133,7 +136,7 @@ tool_col1, tool_col2 = st.columns(2)
 file_content = ""
 
 with tool_col1:
-    # 버튼 이름에 현재 모델을 짧게 표시 (예: 🚀 엔진: Nemotron)
+    # 버튼 이름에 현재 모델을 짧게 표시
     short_name = st.session_state.current_model_label.split(' ')[1] 
     with st.popover(f"🚀 엔진: {short_name}", use_container_width=True):
         st.radio("대화할 AI 빠른 전환", list(MODELS.keys()), key="main_model_radio", on_change=sync_model_main)
