@@ -13,5 +13,5 @@ jobs:
     steps:
       - name: Streamlit 앱 접속하기
         # 필수: 아래 주소를 본인의 실제 Streamlit 앱 주소로 꼭 변경하세요!
-        run: curl -L https://본인의-앱-이름.streamlit.app
+        run: curl -L https://my-ai-app.streamlit.app
 
