@@ -15,7 +15,7 @@ except Exception as e:
     st.error("Streamlit Secrets에 NVIDIA_API_KEY, SUPABASE_URL, SUPABASE_KEY 설정을 확인해 주세요.")
     st.stop()
 
-# 2. 클라이언트 초기화 (NVIDIA API & Supabase DB)
+# 2. 클라이언트 초기화
 client = OpenAI(
     base_url="https://integrate.api.nvidia.com/v1",
     api_key=NVIDIA_API_KEY
@@ -27,10 +27,11 @@ def init_supabase() -> Client:
 
 supabase = init_supabase()
 
-# 3. 💡 요청하신 최신 7개 모델 라인업
+# 3. 💡 최신화된 모델 라인업 (DeepSeek 삭제, 신규 모델 2종 추가, Nemotron 3.5 최상단 배치)
 MODELS = {
+    "⚡ Nemotron 3.5 Lightning (30B)": "nvidia/nemotron-3.5-lightning-30b-a3b",
     "👑 Nemotron 3 Ultra (550B)": "nvidia/nemotron-3-ultra-550b-a55b",
-    "⚡ DeepSeek V4 Flash": "deepseek-ai/deepseek-v4-flash",
+    "✨ Muse Glimmer (30B)": "meta/muse-glimmer-30b",
     "🤖 GLM 5.2 (Zhipu AI)": "z-ai/glm-5.2",
     "💻 MiniMax M3": "minimaxai/minimax-m3",
     "🌐 GPT OSS 120B": "openai/gpt-oss-120b",
@@ -38,15 +39,17 @@ MODELS = {
     "🏊 Poolside Laguna XS": "poolside/laguna-xs-2.1"
 }
 
-# 4. 💾 Supabase DB 읽기 / 쓰기 함수
+# 4. 💾 Supabase DB 읽기 / 쓰기 함수 (강력 방어벽 적용)
 def load_history_from_db():
     try:
         res = supabase.table("chat_history").select("data").eq("id", 1).execute()
         if res.data and len(res.data) > 0:
             return res.data[0].get("data", {})
+        else:
+            return {} 
     except Exception as e:
-        st.error(f"DB 데이터 로딩 오류: {e}")
-    return {}
+        st.error(f"🚨 데이터베이스(Supabase)가 수면 모드이거나 응답하지 않습니다.\n데이터 증발을 막기 위해 앱 구동을 일시 정지합니다.\n\n[해결방법] Supabase 대시보드에 로그인해서 'Restore Project'를 눌러 서버를 깨워주세요!\n상세 오류: {e}")
+        st.stop() 
 
 def save_history_to_db(data):
     try:
@@ -60,15 +63,15 @@ if "db" not in st.session_state:
 
 # 최초 실행 시 상태 설정 (항상 빈 화면으로 시작)
 if "current_model_label" not in st.session_state:
-    default_label = list(MODELS.keys())[0]
+    default_label = list(MODELS.keys())[0] # 자동으로 첫 번째 모델(Nemotron 3.5)이 선택됨
     st.session_state.current_model_label = default_label
     st.session_state.sidebar_model_select = default_label
     st.session_state.main_model_radio = default_label
 
 if "current_room" not in st.session_state:
-    st.session_state.current_room = None  # None이면 '새 대화(빈 창)'
+    st.session_state.current_room = None
 
-# 모델 변경 이벤트 (변경 시 새 대화창으로 리셋)
+# 모델 변경 이벤트
 def handle_model_change(new_label):
     st.session_state.current_model_label = new_label
     st.session_state.sidebar_model_select = new_label
@@ -82,11 +85,10 @@ current_model_id = MODELS[st.session_state.current_model_label]
 if current_model_id not in st.session_state.db:
     st.session_state.db[current_model_id] = {}
 
-# --- ⚙️ 왼쪽 사이드바 (모델 선택 & ChatGPT 스타일 Tree 메뉴) ---
+# --- ⚙️ 왼쪽 사이드바 ---
 with st.sidebar:
     st.selectbox("🚀 AI 엔진 선택", list(MODELS.keys()), key="sidebar_model_select", on_change=sync_model_sidebar)
     
-    # 상단 새 대화 버튼
     if st.button("➕ 새 대화 시작", use_container_width=True, type="primary"):
         st.session_state.current_room = None
         st.rerun()
@@ -94,7 +96,6 @@ with st.sidebar:
     st.divider()
     st.markdown(f"### 🗂️ {st.session_state.current_model_label.split(' ')[1]} 대화 목록")
     
-    # 과거 대화 목록 (Tree 형태)
     room_names = list(st.session_state.db[current_model_id].keys())
     options = ["➕ 현재 새 대화 중..."] + list(reversed(room_names))
     
@@ -142,7 +143,6 @@ with tool_col2:
         st.write("🎙️ **음성 입력**")
         audio_val = st.audio_input("음성 녹음", label_visibility="collapsed")
 
-# 빈 대화창 vs 기존 대화 내역 출력
 if st.session_state.current_room is None:
     st.markdown("<br><br>", unsafe_allow_html=True)
     st.markdown(f"<h2 style='text-align: center;'>무엇을 도와드릴까요?</h2>", unsafe_allow_html=True)
@@ -155,7 +155,6 @@ else:
             with st.chat_message(message["role"]):
                 st.write(message["content"])
 
-# 퀵 프롬프트 (새 대화 상태에서만 표시)
 quick_prompt = None
 if st.session_state.current_room is None:
     q_col1, q_col2, q_col3 = st.columns(3)
@@ -167,7 +166,6 @@ if st.session_state.current_room is None:
 prompt = st.chat_input("메시지를 입력하세요...") or quick_prompt
 
 if prompt:
-    # 💡 첫 질문 시 자동으로 방 제목(Tree 메뉴) 생성
     if st.session_state.current_room is None:
         title = prompt[:15] + "..." if len(prompt) > 15 else prompt
         base_title = title
@@ -180,12 +178,10 @@ if prompt:
         st.session_state.db[current_model_id][title] = []
         messages = st.session_state.db[current_model_id][title]
 
-    # 시스템 프롬프트 업데이트
     if not messages or messages[0].get("role") != "system" or messages[0].get("content") != system_prompt:
         messages = [m for m in messages if m["role"] != "system"]
         messages.insert(0, {"role": "system", "content": system_prompt})
 
-    # 첨부 파일 내용 처리
     display_prompt = prompt
     actual_prompt = prompt
     if file_content:
@@ -219,12 +215,11 @@ if prompt:
             
             message_placeholder.markdown(full_response)
             
-            # AI 답변 DB 저장
             messages.append({"role": "assistant", "content": full_response})
             st.session_state.db[current_model_id][st.session_state.current_room] = messages
             save_history_to_db(st.session_state.db)
             
-            st.rerun() # 제목 반영 및 UI 갱신을 위한 새로고침
+            st.rerun() 
             
         except Exception as e:
             message_placeholder.error(f"오류가 발생했습니다: {e}")
