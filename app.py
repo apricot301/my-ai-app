@@ -27,7 +27,7 @@ def init_supabase() -> Client:
 
 supabase = init_supabase()
 
-# 3. 💡 최신화된 모델 라인업 (DeepSeek 삭제, 신규 모델 2종 추가, Nemotron 3.5 최상단 배치)
+# 3. 모델 라인업
 MODELS = {
     "⚡ Nemotron 3.5 Lightning (30B)": "nvidia/nemotron-3.5-lightning-30b-a3b",
     "👑 Nemotron 3 Ultra (550B)": "nvidia/nemotron-3-ultra-550b-a55b",
@@ -39,7 +39,7 @@ MODELS = {
     "🏊 Poolside Laguna XS": "poolside/laguna-xs-2.1"
 }
 
-# 4. 💾 Supabase DB 읽기 / 쓰기 함수 (강력 방어벽 적용)
+# 4. 💾 Supabase DB 읽기 / 쓰기 함수
 def load_history_from_db():
     try:
         res = supabase.table("chat_history").select("data").eq("id", 1).execute()
@@ -61,9 +61,9 @@ def save_history_to_db(data):
 if "db" not in st.session_state:
     st.session_state.db = load_history_from_db()
 
-# 최초 실행 시 상태 설정 (항상 빈 화면으로 시작)
+# 최초 실행 시 상태 설정
 if "current_model_label" not in st.session_state:
-    default_label = list(MODELS.keys())[0] # 자동으로 첫 번째 모델(Nemotron 3.5)이 선택됨
+    default_label = list(MODELS.keys())[0] 
     st.session_state.current_model_label = default_label
     st.session_state.sidebar_model_select = default_label
     st.session_state.main_model_radio = default_label
@@ -124,16 +124,17 @@ with st.sidebar:
         system_prompt = st.text_area("AI 역할 부여", value="당신은 유능하고 친절한 AI 어시스턴트입니다.")
 
 # --- 💬 메인 화면 ---
-tool_col1, tool_col2 = st.columns(2)
+# 💡 상단 도구 모음을 3칸으로 나누고 우측 끝에 '새 대화' 버튼 배치
+tool_col1, tool_col2, tool_col3 = st.columns([4, 4, 3])
 file_content = ""
 
 with tool_col1:
     short_name = st.session_state.current_model_label.split(' ')[1] 
-    with st.popover(f"🚀 현재 엔진: {short_name}", use_container_width=True):
+    with st.popover(f"🚀 엔진: {short_name}", use_container_width=True):
         st.radio("대화할 AI 빠른 전환", list(MODELS.keys()), key="main_model_radio", on_change=sync_model_main)
 
 with tool_col2:
-    with st.popover("📎 파일 / 음성 입력", use_container_width=True):
+    with st.popover("📎 첨부/음성", use_container_width=True):
         st.write("📄 **문서 첨부 (txt, csv, md)**")
         uploaded_file = st.file_uploader("문서를 올려주세요", type=['txt', 'csv', 'md'], label_visibility="collapsed")
         if uploaded_file:
@@ -142,6 +143,12 @@ with tool_col2:
         st.divider()
         st.write("🎙️ **음성 입력**")
         audio_val = st.audio_input("음성 녹음", label_visibility="collapsed")
+
+with tool_col3:
+    # 💡 메인 화면용 다이렉트 새 대화 버튼
+    if st.button("➕ 새 대화", use_container_width=True):
+        st.session_state.current_room = None
+        st.rerun()
 
 if st.session_state.current_room is None:
     st.markdown("<br><br>", unsafe_allow_html=True)
